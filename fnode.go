@@ -13,11 +13,13 @@ import (
 //   - degree
 //
 // fnode siblings are doubly-linked.
-type fnode[P, V any] struct {
-	priority                      P
+// Since fnodes are only used by fheaps, the implemented
+// methods are, wlog, left-centric.
+type fnode[V, P any] struct {
 	Value                         V
+	priority                      P
 	bereaved                      bool
-	parent, children, left, right *fnode[P, V]
+	parent, children, left, right *fnode[V, P]
 	degree                        int
 }
 
@@ -27,38 +29,30 @@ var errBarrenFnode = errors.New("barren node")
 // newFnode creates a new fnode given a priority and a value.
 // The node's parent and children pointers are nil, and its
 // left and right pointers are set to itself.
-func newFnode[P, V any](priority P, value V) *fnode[P, V] {
-	f := &fnode[P, V]{priority: priority, Value: value}
+func newFnode[V, P any](value V, priority P) *fnode[V, P] {
+	f := &fnode[V, P]{priority: priority, Value: value}
 	f.left = f
 	f.right = f
 	return f
 }
 
 // insertLeft inserts an fnode to the left of the current fnode.
-func (fn *fnode[P, V]) insertLeft(other *fnode[P, V]) error {
+func (fn *fnode[V, P]) insertLeft(other *fnode[V, P]) error {
 	if fn == nil || other == nil {
 		return errNilFnode
 	}
-	fn.left = other
+	fn.left.right = other
+	other.left = fn.left
 	other.right = fn
+	fn.left = other
 	return nil
 }
 
-// insertRight inserts an fnode to the right of the current fnode.
-func (fn *fnode[P, V]) insertRight(other *fnode[P, V]) error {
-	if fn == nil || other == nil {
-		return errNilFnode
-	}
-	fn.right = other
-	other.left = fn
-	return nil
-}
-
-// insertChildLeft inserts an fnode to the left of the current fnode's
-// children pointer, preserving the pre-existing sibling chain, if present.
+// insertChild inserts an fnode to the left of the current fnode's
+// children pointer.
 // The child fnode's parent pointer is updated, and the parent fnode's
 // degree incremented.
-func (fn *fnode[P, V]) insertChildLeft(other *fnode[P, V]) (err error) {
+func (fn *fnode[V, P]) insertChild(other *fnode[V, P]) (err error) {
 	if fn == nil || other == nil {
 		return errNilFnode
 	}
@@ -76,52 +70,39 @@ func (fn *fnode[P, V]) insertChildLeft(other *fnode[P, V]) (err error) {
 	return
 }
 
-// popLeftChild removes an fnode's left child from the parent fnode's
-// children and its siblings, preserving the pre-existing sibling chain,
-// if present. The parent's degree is updated, the child's parent pointer
-// set to nil, and the child's left and right pointers to itself.
-func (fn *fnode[P, V]) popLeftChild() (child *fnode[P, V], err error) {
+// removeChild removes a child node from its parent.
+func (fn *fnode[V, P]) removeChild(child *fnode[V, P]) error {
 	if fn == nil {
-		err = errNilFnode
-		return
-	}
-	if fn.children == nil {
-		err = errBarrenFnode
-		return
-	}
-	defer func() {
-		if err == nil {
-			child.parent = nil
-			child.left = child
-			child.right = child
-			fn.degree--
-		}
-	}()
-	child = fn.children.left
-	if child == fn.children {
-		fn.children = nil
-		return
-	}
-	err = fn.children.insertLeft(child.left)
-	return
-}
-
-// link "combines two item-disjoint [heap-ordered] trees into one.
-// Given two trees with roots x and y, we link them by comparing
-// the keys of items in x and y.
-// If the item in x has the smaller key, we make y a child of x;
-// otherwise, we make x a child of y."
-// When calling this function, it is assumed that the function argument
-// is to be made a child of the current fnode.
-func (fn *fnode[P, V]) link(other *fnode[P, V]) error {
-	if fn == nil || other == nil {
 		return errNilFnode
 	}
-	if other.parent != nil {
-		return fmt.Errorf("%[1]v@%[1]p", other)
-		// if err := other.parent.removeChild(other); err != nil {
-		// 	return err
-		// }
+	if fn.children == nil {
+		return errBarrenFnode
 	}
-	return fn.insertChildLeft(other) // wlog
+	if child.parent != fn {
+		return fmt.Errorf("child %v is unrelated to node %v", child, fn)
+	}
+	fn.degree--
+	if fn.children == child {
+		fn.children = fn.children.right // wlog
+	}
+	if child.left == child.right && child == child.left {
+		fn.children = nil
+	} else {
+		child.left.right = child.right
+		child.right.left = child.left
+	}
+	return nil
+}
+
+// popChild pops this node's child's left sibling.
+func (fn *fnode[V, P]) popChild() (*fnode[V, P], error) {
+	if fn == nil {
+		return nil, errNilFnode
+	}
+	if fn.children == nil {
+		return nil, errBarrenFnode
+	}
+	child := fn.children.left
+	err := fn.removeChild(child)
+	return child, err
 }
