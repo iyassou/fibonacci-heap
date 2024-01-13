@@ -8,7 +8,7 @@ Supported operations:
 
 | Function                       | Effect                                       |
 | :----------------------------- | :------------------------------------------- |
-| `New[V, P](...) *fheap[P, V]`  | Creates an empty Fibonacci heap              |
+| `New[V, P](...) *fheap[V, P]`  | Creates an empty Fibonacci heap              |
 | `Size() (int, error)`          | Return how many values are in the heap       |
 | `Push(v, p) error`             | Add value `v` with priority `p` to heap      |
 | `Pop() (V, error)`             | Pop the highest-priority value from the heap |
@@ -42,9 +42,9 @@ import (
 )
 
 func main() {
-	compare := func(x, y int) bool { return x < y }
+	higherThan := func(x, y int) bool { return x < y }
 	sentinel := math.MinInt
-	h := fheap.New[string, int](compare, sentinel)
+	h := fheap.New[string, int](higherThan, sentinel)
 
 	// Pushing to the heap.
 	h.Push("low priority", 100)
@@ -72,7 +72,7 @@ func main() {
 
 A Fibonacci heap consists of heap-ordered trees. A node in these trees has a priority and a value. The priority is what determines the node's ordering in the tree, and its value what we wish to order. Both the priority and value of a node are generic, with the following type constraints.
 
-In order to support deletion and increasing the priority of a value in the heap within the theoretical amortised time complexities of `O(log n)` and `O(1)` respectively, this implementation makes use of a `map` associating each value to its associated node's pointer. For this reason, values in the heap must be `comparable` and unique.
+In order to support deletion and increasing the priority of a value in the heap within the theoretical amortised time complexities of `O(log n)` and `O(1)` respectively, this implementation makes use of a `map` associating each value to its node's pointer. For this reason, values in the heap must be `comparable` and unique.
 
 Priorities on the other hand are of type `any`. `New` requires a user-defined priority comparison function. This function, `R`, must be a [connected binary relation](https://en.wikipedia.org/wiki/Connected_relation) on the priority's type `P`, i.e.
 
